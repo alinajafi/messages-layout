@@ -1,0 +1,12 @@
+{
+    "translation_catalog": "sailfishos-patch-messages-layout",
+    "entries": [
+    {
+        "path": "applications/jolla-messages/layout",
+        "type": "custom",
+        "params": {
+            "source": "/usr/share/jolla-settings/pages/jolla-messages/messages.qml"
+        }
+    }
+    ]
+}
