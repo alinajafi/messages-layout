@@ -1,0 +1,343 @@
+diff -Nru jolla/usr/share/jolla-messages/cover/SingleMessageCover.qml alina/usr/share/jolla-messages/cover/SingleMessageCover.qml
+--- jolla/usr/share/jolla-messages/cover/SingleMessageCover.qml	2016-01-05 15:40:01.525004845 +0330
++++ alina/usr/share/jolla-messages/cover/SingleMessageCover.qml	2016-01-05 17:13:01.917271059 +0330
+@@ -19,6 +19,7 @@
+ import QtQuick 2.0
+ import Sailfish.Silica 1.0
+ import org.nemomobile.commhistory 1.0
++import org.nemomobile.configuration 1.0 
+ 
+ Item {
+     id: messageCover
+@@ -56,7 +57,7 @@
+         y: Theme.paddingLarge
+         width: parent.width - 2 * Theme.paddingLarge
+         font.pixelSize: Theme.fontSizeSmall
+-        horizontalAlignment: Text.AlignRight
++        horizontalAlignment: layout.swapText ? Text.AlignLeft : Text.AlignRight
+         verticalAlignment: Text.AlignVCenter
+         wrapMode: Text.Wrap
+         elide: Text.ElideRight
+@@ -74,5 +75,12 @@
+         text: messageSender
+         truncationMode: TruncationMode.Fade
+     }
++
++    ConfigurationGroup {
++        id: layout
++        path: "/apps/jolla-messages/messageLayout"
++
++        property bool swapText: true
++    }
+ }
+  
+diff -Nru jolla/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qml alina/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qml
+--- jolla/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qml	2016-01-05 14:25:41.240482399 +0330
++++ alina/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qml	2016-01-06 07:11:33.877294684 +0330
+@@ -20,10 +20,13 @@
+ import Sailfish.Silica 1.0
+ import Sailfish.TextLinking 1.0
+ import org.nemomobile.commhistory 1.0
++import org.nemomobile.configuration 1.0 
+ 
+ ListItem {
+     id: message
+-    contentHeight: Math.max(retryIcon.height, textLabel.implicitHeight + errorLabel.height) + Theme.paddingSmall
++    contentHeight: layout.detailedLog ?
++                   Math.max(timeLabel.y + timeLabel.height, retryIcon.height) + Theme.paddingSmall :
++                   Math.max(retryIcon.height, textLabel.implicitHeight + errorLabel.height) + Theme.paddingSmall
+     menu: messageContextMenu
+ 
+     property QtObject modelData
+@@ -40,33 +43,72 @@
+         }
+     }
+ 
++    Rectangle {
++        anchors {
++            fill: parent
++            leftMargin: (layout.swapText && inbound) || (!layout.swapText && !inbound) || !layout.detailedLog ?
++                        Theme.paddingLarge / 2 : textLabel.sidePadding
++            rightMargin: (layout.swapText && !inbound) || (!layout.swapText && inbound) || !layout.detailedLog ?
++                         Theme.paddingLarge / 2 : textLabel.sidePadding
++            topMargin: Theme.paddingSmall / 2
++            bottomMargin: Theme.paddingSmall / 2
++        }
++        color: inbound ? Qt.darker(Theme.highlightColor, 2) : Qt.lighter(Theme.highlightColor, 2)
++        radius: Theme.paddingSmall
++        z: -1
++        opacity: 0.7
++        visible: layout.bubble
++    }
++
+     Label {
+         id: timeLabel
+         width: Math.max(paintedWidth + Theme.horizontalPageMargin, Theme.itemSizeSmall)
+-        anchors.baseline: textLabel.baseline
+-        horizontalAlignment: Text.AlignRight
++        anchors {
++            left: layout.detailedLog ? parent.left : undefined
++            leftMargin: layout.detailedLog ? Theme.horizontalPageMargin : undefined
++            right: layout.detailedLog ? parent.right : undefined
++            rightMargin: layout.detailedLog ? Theme.horizontalPageMargin : undefined
++            top: layout.detailedLog ? textLabel.bottom : undefined
++            topMargin: layout.detailedLog ? Theme.paddingSmall : undefined
++            baseline: layout.detailedLog ? undefined : textLabel.baseline
++        }
++        horizontalAlignment: layout.detailedLog ? textLabel.horizontalAlignment : Text.AlignRight
+ 
+         font.pixelSize: Theme.fontSizeExtraSmall
+-        text: modelData ? Format.formatDate(modelData.startTime, Formatter.TimeValue) : ""
+-        color: (!inbound || message.highlighted) ? Theme.highlightColor : Theme.primaryColor
+-        opacity: textLabel.opacity - 0.1
++        text: modelData ?
++              (layout.detailedLog ? Format.formatDate(modelData.startTime, Formatter.Timepoint) :
++              Format.formatDate(modelData.startTime, Formatter.TimeValue)) : ""
++        color: layout.bubble && !inbound ? Theme.highlightDimmerColor :
++               (message.highlighted || !inbound ? Theme.highlightColor : Theme.primaryColor)
++        opacity: layout.detailedLog ? 0.6 : textLabel.opacity - 0.1
+     }
+ 
+     LinkedText {
+         id: textLabel
+         y: Theme.paddingSmall / 2
+         anchors {
+-            left: timeLabel.right
+-            leftMargin: Theme.paddingMedium
++            left: layout.detailedLog ? parent.left : timeLabel.right
++            leftMargin: layout.detailedLog ?
++                        ((layout.swapText && !inbound) || (!layout.swapText && inbound) ? sidePadding :
++                        (retryIcon.width ? Theme.paddingMedium : Theme.horizontalPageMargin)) :
++                        Theme.paddingMedium
+             right: parent.right
+-            rightMargin: Theme.horizontalPageMargin
++            rightMargin: layout.detailedLog ?
++                         ((layout.swapText && inbound) || (!layout.swapText && !inbound) ? sidePadding :
++                         (retryIcon.width ? Theme.paddingMedium : Theme.horizontalPageMargin)) :
++                         Theme.horizontalPageMargin
+         }
+ 
+-        font.pixelSize: Theme.fontSizeSmall
++        property int sidePadding: Theme.itemSizeSmall + Theme.horizontalPageMargin
++        font.pixelSize: layout.detailedLog && inbound ? Theme.fontSizeMedium : Theme.fontSizeSmall
+         wrapMode: Text.Wrap
+         plainText: modelData ? modelData.freeText : ""
+         color: timeLabel.color
+-        opacity: (inbound || message.highlighted) ? 1 : 0.8
++        opacity: (layout.detailedLog || inbound || message.highlighted) ? 1 : 0.8
++        horizontalAlignment: layout.detailedLog ?
++                             ((layout.swapText && inbound) || (!layout.swapText && !inbound) ?
++                             Qt.AlignLeft : Qt.AlignRight) : undefined
++        verticalAlignment: layout.detailedLog ? Qt.AlignBottom : undefined
+     }
+ 
+     Label {
+@@ -125,5 +167,14 @@
+             anchors.left: retryIcon.right
+         }
+     }
++
++    ConfigurationGroup {
++        id: layout
++        path: "/apps/jolla-messages/messageLayout"
++
++        property bool swapText: true
++        property bool detailedLog: true
++        property bool bubble: true
++    }
+ }
+ 
+diff -Nru jolla/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.qml alina/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.qml
+--- jolla/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.qml	2016-01-05 14:53:40.744872187 +0330
++++ alina/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.qml	2016-01-06 06:44:20.897249604 +0330
+@@ -20,6 +20,7 @@
+ import Sailfish.Silica 1.0
+ import Sailfish.TextLinking 1.0
+ import org.nemomobile.commhistory 1.0
++import org.nemomobile.configuration 1.0 
+ 
+ ListItem {
+     id: message
+@@ -36,19 +37,34 @@
+     Image {
+         id: retryIcon
+         anchors {
+-            left: inbound ? undefined : parent.left
+-            right: inbound ? parent.right : undefined
++            left: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? parent.left : undefined
++            right: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? undefined : parent.right
+             bottom: parent.bottom
+         }
+     }
+ 
++    Rectangle {
++        anchors {
++            fill: parent
++            leftMargin: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? Theme.paddingLarge / 2 : messageText.sidePadding
++            rightMargin: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? messageText.sidePadding : Theme.paddingLarge / 2
++            topMargin: Theme.paddingSmall
++            bottomMargin: Theme.paddingSmall
++        }
++        color: inbound ? Qt.darker(Theme.highlightColor, 2) : Qt.lighter(Theme.highlightColor, 2)
++        radius: Theme.paddingSmall
++        z: -1
++        opacity: 0.7
++        visible: layout.bubble
++    }
++
+     Column {
+         id: attachments
+         height: Math.max(implicitHeight, attachmentOverlay.height)
+         width: Math.max(implicitWidth, attachmentOverlay.width)
+         anchors {
+-            left: inbound ? undefined : parent.left
+-            right: inbound ? parent.right : undefined
++            left: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? parent.left : undefined
++            right: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? undefined : parent.right
+             // We really want the baseline of the last line of text, but there's no way to get that
+             bottom: messageText.bottom
+             bottomMargin: messageText.y
+@@ -59,7 +75,7 @@
+             model: modelData.messageParts
+ 
+             AttachmentDelegate {
+-                anchors.right: inbound ? parent.right : undefined
++                anchors.left: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? parent.left : undefined
+                 messagePart: modelData
+                 // Retry icon for attachment outbound messages
+                 showRetryIcon: message.canRetry
+@@ -102,10 +118,16 @@
+     LinkedText {
+         id: messageText
+         anchors {
+-            left: inbound ? parent.left : attachments.right
+-            right: inbound ? attachments.left : parent.right
+-            leftMargin: inbound ? sidePadding : (attachments.height ? Theme.paddingMedium : (retryIcon.width ? Theme.paddingMedium : Theme.horizontalPageMargin))
+-            rightMargin: !inbound ? sidePadding : (attachments.height ? Theme.paddingMedium : (retryIcon.width ? Theme.paddingMedium : Theme.horizontalPageMargin))
++            left: (layout.swapText && inbound) || (!layout.swapText && !inbound) ?
++                  attachments.right : parent.left
++            right: (layout.swapText && inbound) || (!layout.swapText && !inbound) ?
++                   parent.right : attachments.left
++            leftMargin: (layout.swapText && !inbound) || (!layout.swapText && inbound) ? sidePadding :
++                        (attachments.height ? Theme.paddingMedium : (retryIcon.width ? Theme.paddingMedium :
++                        Theme.horizontalPageMargin))
++            rightMargin: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? sidePadding :
++                         (attachments.height ? Theme.paddingMedium : (retryIcon.width ? Theme.paddingMedium :
++                         Theme.horizontalPageMargin))
+         }
+ 
+         property int sidePadding: Theme.itemSizeSmall + Theme.horizontalPageMargin
+@@ -133,10 +155,12 @@
+             }
+         }
+ 
+-        color: (message.highlighted || !inbound) ? Theme.highlightColor : Theme.primaryColor
++        color: layout.bubble && !inbound ? Theme.highlightDimmerColor :
++               (message.highlighted || !inbound ? Theme.highlightColor : Theme.primaryColor)
+         font.pixelSize: inbound ? Theme.fontSizeMedium : Theme.fontSizeSmall
+-        horizontalAlignment: inbound ? Qt.AlignRight : Qt.AlignLeft
++        horizontalAlignment: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? Qt.AlignLeft : Qt.AlignRight
+         verticalAlignment: Qt.AlignBottom
++
+     }
+ 
+     Label {
+@@ -171,10 +195,12 @@
+                 var re = Format.formatDate(modelData.startTime, Formatter.Timepoint)
+                 if (modelData.readStatus === CommHistory.ReadStatusRead) {
+                     //% "Read"
+-                    re += " | " + qsTrId("messages-message_state_read")
++                    re = layout.swapText ? (qsTrId("messages-message_state_read") + " | " + re) :
++                                           (re + " | " + qsTrId("messages-message_state_read"))
+                 } else if (modelData.status === CommHistory.DeliveredStatus) {
+                     //% "Delivered"
+-                    re += " | " + qsTrId("messages-message_state_delivered")
++                    re = layout.swapText ? (qsTrId("messages-message_state_delivered") + " | " + re) :
++                                           (re + " | " + qsTrId("messages-message_state_delivered"))
+                 }
+                 return re
+             }
+@@ -189,6 +215,14 @@
+         }
+     }
+ 
++    ConfigurationGroup {
++        id: layout
++        path: "/apps/jolla-messages/messageLayout"
++
++        property bool swapText: true
++        property bool bubble: true
++    }
++
+     states: [
+         State {
+             name: "outboundErrorNoAttachment"
+@@ -202,8 +236,8 @@
+ 
+             AnchorChanges {
+                 target: timestamp
+-                anchors.left: inbound ? undefined : retryIcon.right
+-                anchors.right: inbound ? retryIcon.left : undefined
++                anchors.left: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? retryIcon.right : undefined
++                anchors.right: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? undefined : retryIcon.left
+             }
+ 
+             PropertyChanges {
+diff -Nru jolla/usr/share/jolla-settings/pages/jolla-messages/messages.qml alina/usr/share/jolla-settings/pages/jolla-messages/messages.qml
+--- jolla/usr/share/jolla-settings/pages/jolla-messages/messages.qml	2016-01-05 16:48:18.525200294 +0330
++++ alina/usr/share/jolla-settings/pages/jolla-messages/messages.qml	2016-01-06 11:43:24.245744953 +0330
+@@ -274,9 +274,54 @@
+                     defaultValue: true
+                 }
+             }
++
++            SectionHeader {
++                //: Layout settings section header
++                //% "Layout"
++                text: qsTrId("sailfishos-patch-messages-layout-he-layout")
++            }
++
++            TextSwitch {
++                width: parent.width
++                //% "Swap SMS alignments"
++                text: qsTrId("sailfishos-patch-messages-layout-la-swap")
++                //% "By default sent messages are on the left and received ones on the right. This will swap alignments; i.e. received on the left and sent on the right"
++                description: qsTrId("sailfishos-patch-messages-layout-la-swap_description")
++                checked: layout.swapText
++                onClicked: layout.swapText = checked
++            }
++
++            TextSwitch {
++                width: parent.width
++                //% "IM detailed log"
++                text: qsTrId("sailfishos-patch-messages-layout-la-detailed_log")
++                //% "Shows date and time, and aligns IMs according to SMS settings"
++                description: qsTrId("sailfishos-patch-messages-layout-la-detailed_log_description")
++                checked: layout.detailedLog
++                onClicked: layout.detailedLog = checked
++            }
++
++            TextSwitch {
++                width: parent.width
++                //% "Text bubbles"
++                text: qsTrId("sailfishos-patch-messages-layout-la-bubbles")
++                //% "Increases message readability showing rectangular backgrounds"
++                description: qsTrId("sailfishos-patch-messages-layout-la-bubbles_description")
++                checked: layout.bubble
++                onClicked: layout.bubble = checked
++            }
+         }
+     }
+ 
++    ConfigurationGroup {
++        id: layout
++        path: "/apps/jolla-messages/messageLayout"
++
++        property bool swapText: true
++        property bool detailedLog: true
++        property bool bubble: true
++    }
++
+     NetworkManagerFactory { id: networkFactory }
+ 
+     OfonoMessageManager {
