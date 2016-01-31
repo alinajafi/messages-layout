@@ -33,7 +33,7 @@ diff -Nru jolla/usr/share/jolla-messages/cover/SingleMessageCover.qml alina/usr/
   
 diff -Nru jolla/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qml alina/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qml
 --- jolla/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qml	2016-01-05 14:25:41.240482399 +0330
-+++ alina/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qml	2016-01-06 07:11:33.877294684 +0330
++++ alina/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qml	2016-01-31 20:39:21.028570654 +0330
 @@ -20,10 +20,13 @@
  import Sailfish.Silica 1.0
  import Sailfish.TextLinking 1.0
@@ -44,30 +44,50 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qm
      id: message
 -    contentHeight: Math.max(retryIcon.height, textLabel.implicitHeight + errorLabel.height) + Theme.paddingSmall
 +    contentHeight: layout.detailedLog ?
-+                   Math.max(timeLabel.y + timeLabel.height, retryIcon.height) + Theme.paddingSmall :
-+                   Math.max(retryIcon.height, textLabel.implicitHeight + errorLabel.height) + Theme.paddingSmall
++                   Math.max(timeLabel.y + timeLabel.height, retryIcon.height) + Theme.paddingMedium :
++                   Math.max(retryIcon.height, textLabel.implicitHeight + errorLabel.height) + Theme.paddingMedium
      menu: messageContextMenu
  
      property QtObject modelData
-@@ -40,33 +43,72 @@
+@@ -40,33 +43,93 @@
          }
      }
  
 +    Rectangle {
++        id: layoutBubble
 +        anchors {
 +            fill: parent
 +            leftMargin: (layout.swapText && inbound) || (!layout.swapText && !inbound) || !layout.detailedLog ?
-+                        Theme.paddingLarge / 2 : textLabel.sidePadding
++                        Theme.paddingMedium : textLabel.sidePadding - Theme.paddingMedium
 +            rightMargin: (layout.swapText && !inbound) || (!layout.swapText && inbound) || !layout.detailedLog ?
-+                         Theme.paddingLarge / 2 : textLabel.sidePadding
-+            topMargin: Theme.paddingSmall / 2
-+            bottomMargin: Theme.paddingSmall / 2
++                         Theme.paddingMedium : textLabel.sidePadding - Theme.paddingMedium
++            topMargin: Theme.paddingSmall
++            bottomMargin: Theme.paddingSmall
 +        }
-+        color: inbound ? Qt.darker(Theme.highlightColor, 2) : Qt.lighter(Theme.highlightColor, 2)
++        color: inbound ? Qt.lighter(Theme.highlightColor, 2) : Qt.darker(Theme.highlightColor, 2)
 +        radius: Theme.paddingSmall
 +        z: -1
 +        opacity: 0.7
 +        visible: layout.bubble
++    }
++
++    Image {
++        width: Theme.paddingMedium
++        height: width
++        anchors {
++            left: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? parent.left : undefined
++            right: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? undefined : parent.right
++            bottom: parent.bottom
++            bottomMargin: Theme.paddingMedium
++        }
++        source: ((layout.swapText && inbound) || (!layout.swapText && !inbound) ? "image://theme/bubble-left?" : "image://theme/bubble-right?") + layoutBubble.color
++        z: -1
++        opacity: 0.7
++        visible: layout.bubble
++    }
++
++    function reverseColor(color) {
++        return Qt.rgba(1.0 - color.r, 1.0 - color.g, 1.0 - color.b, 1.0)
 +    }
 +
      Label {
@@ -93,14 +113,15 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qm
 +        text: modelData ?
 +              (layout.detailedLog ? Format.formatDate(modelData.startTime, Formatter.Timepoint) :
 +              Format.formatDate(modelData.startTime, Formatter.TimeValue)) : ""
-+        color: layout.bubble && !inbound ? Theme.highlightDimmerColor :
-+               (message.highlighted || !inbound ? Theme.highlightColor : Theme.primaryColor)
++        color: layout.bubble && inbound ? Theme.highlightDimmerColor :
++               (message.highlighted || (!inbound && !layout.bubble) ? Theme.highlightColor : Theme.primaryColor)
 +        opacity: layout.detailedLog ? 0.6 : textLabel.opacity - 0.1
      }
  
      LinkedText {
          id: textLabel
-         y: Theme.paddingSmall / 2
+-        y: Theme.paddingSmall / 2
++        y: Theme.paddingMedium / 2
          anchors {
 -            left: timeLabel.right
 -            leftMargin: Theme.paddingMedium
@@ -124,6 +145,7 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qm
          plainText: modelData ? modelData.freeText : ""
          color: timeLabel.color
 -        opacity: (inbound || message.highlighted) ? 1 : 0.8
++        linkColor: layout.bubble && inbound ? reverseColor(Theme.highlightColor) : Theme.highlightColor
 +        opacity: (layout.detailedLog || inbound || message.highlighted) ? 1 : 0.8
 +        horizontalAlignment: layout.detailedLog ?
 +                             ((layout.swapText && inbound) || (!layout.swapText && !inbound) ?
@@ -132,7 +154,16 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qm
      }
  
      Label {
-@@ -125,5 +167,14 @@
+@@ -100,7 +163,7 @@
+ 
+         PropertyChanges {
+             target: retryIcon
+-            source: "image://theme/icon-m-refresh?" + (message.highlighted ? Theme.highlightColor : Theme.primaryColor)
++            source: "image://theme/icon-m-refresh?" + (message.highlighted ? (layout.bubble && !inbound ? Theme.highlightDimmerColor : Theme.highlightColor) : Theme.primaryColor)
+         }
+ 
+         PropertyChanges {
+@@ -125,5 +188,14 @@
              anchors.left: retryIcon.right
          }
      }
@@ -149,8 +180,8 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/IMMessageDelegate.qm
  
 diff -Nru jolla/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.qml alina/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.qml
 --- jolla/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.qml	2016-01-05 14:53:40.744872187 +0330
-+++ alina/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.qml	2016-01-06 06:44:20.897249604 +0330
-@@ -20,6 +20,7 @@
++++ alina/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.qml	2016-01-31 20:39:31.600571158 +0330
+@@ -20,10 +20,12 @@
  import Sailfish.Silica 1.0
  import Sailfish.TextLinking 1.0
  import org.nemomobile.commhistory 1.0
@@ -158,7 +189,13 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.q
  
  ListItem {
      id: message
-@@ -36,19 +37,34 @@
+-    contentHeight: Math.max(timestamp.y + timestamp.height, retryIcon.height) + Theme.paddingMedium
++    contentHeight: layout.bubble ? Math.max(timestamp.y + timestamp.height, retryIcon.height) + Theme.paddingLarge :
++                   Math.max(timestamp.y + timestamp.height, retryIcon.height) + Theme.paddingMedium
+     menu: messageContextMenu
+ 
+     property QtObject modelData
+@@ -36,19 +38,56 @@
      Image {
          id: retryIcon
          anchors {
@@ -171,18 +208,40 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.q
      }
  
 +    Rectangle {
++        id: layoutBubble
 +        anchors {
 +            fill: parent
-+            leftMargin: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? Theme.paddingLarge / 2 : messageText.sidePadding
-+            rightMargin: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? messageText.sidePadding : Theme.paddingLarge / 2
-+            topMargin: Theme.paddingSmall
-+            bottomMargin: Theme.paddingSmall
++            leftMargin: (layout.swapText && inbound) || (!layout.swapText && !inbound) ?
++                        Theme.paddingMedium : messageText.sidePadding - Theme.paddingMedium
++            rightMargin: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? 
++                         messageText.sidePadding - Theme.paddingMedium : Theme.paddingMedium
++            topMargin: Theme.paddingMedium
++            bottomMargin: Theme.paddingMedium
 +        }
-+        color: inbound ? Qt.darker(Theme.highlightColor, 2) : Qt.lighter(Theme.highlightColor, 2)
++        color: inbound ? Qt.lighter(Theme.highlightColor, 2) : Qt.darker(Theme.highlightColor, 2)
 +        radius: Theme.paddingSmall
 +        z: -1
 +        opacity: 0.7
 +        visible: layout.bubble
++    }
++
++    Image {
++        width: Theme.paddingMedium
++        height: width
++        anchors {
++            left: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? parent.left : undefined
++            right: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? undefined : parent.right
++            bottom: parent.bottom
++            bottomMargin: Theme.paddingMedium*1.5
++        }
++        source: ((layout.swapText && inbound) || (!layout.swapText && !inbound) ? "image://theme/bubble-left?" : "image://theme/bubble-right?") + layoutBubble.color
++        z: -1
++        opacity: 0.7
++        visible: layout.bubble
++    }
++
++    function reverseColor(color) {
++        return Qt.rgba(1.0 - color.r, 1.0 - color.g, 1.0 - color.b, 1.0)
 +    }
 +
      Column {
@@ -197,7 +256,7 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.q
              // We really want the baseline of the last line of text, but there's no way to get that
              bottom: messageText.bottom
              bottomMargin: messageText.y
-@@ -59,7 +75,7 @@
+@@ -59,7 +98,7 @@
              model: modelData.messageParts
  
              AttachmentDelegate {
@@ -206,7 +265,7 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.q
                  messagePart: modelData
                  // Retry icon for attachment outbound messages
                  showRetryIcon: message.canRetry
-@@ -102,10 +118,16 @@
+@@ -102,14 +141,20 @@
      LinkedText {
          id: messageText
          anchors {
@@ -227,13 +286,19 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.q
          }
  
          property int sidePadding: Theme.itemSizeSmall + Theme.horizontalPageMargin
-@@ -133,10 +155,12 @@
+-        y: Theme.paddingMedium / 2
++        y: layout.bubble ? Theme.paddingMedium * 3/2 : Theme.paddingMedium / 2
+         height: Math.max(implicitHeight, attachments.height)
+         wrapMode: Text.Wrap
+ 
+@@ -133,10 +178,13 @@
              }
          }
  
 -        color: (message.highlighted || !inbound) ? Theme.highlightColor : Theme.primaryColor
-+        color: layout.bubble && !inbound ? Theme.highlightDimmerColor :
-+               (message.highlighted || !inbound ? Theme.highlightColor : Theme.primaryColor)
++        color: layout.bubble && inbound ? Theme.highlightDimmerColor :
++               (message.highlighted || (!inbound && !layout.bubble) ? Theme.highlightColor : Theme.primaryColor)
++        linkColor: layout.bubble && inbound ? reverseColor(Theme.highlightColor) : Theme.highlightColor
          font.pixelSize: inbound ? Theme.fontSizeMedium : Theme.fontSizeSmall
 -        horizontalAlignment: inbound ? Qt.AlignRight : Qt.AlignLeft
 +        horizontalAlignment: (layout.swapText && inbound) || (!layout.swapText && !inbound) ? Qt.AlignLeft : Qt.AlignRight
@@ -242,7 +307,7 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.q
      }
  
      Label {
-@@ -171,10 +195,12 @@
+@@ -171,10 +219,12 @@
                  var re = Format.formatDate(modelData.startTime, Formatter.Timepoint)
                  if (modelData.readStatus === CommHistory.ReadStatusRead) {
                      //% "Read"
@@ -257,7 +322,7 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.q
                  }
                  return re
              }
-@@ -189,6 +215,14 @@
+@@ -189,6 +239,14 @@
          }
      }
  
@@ -272,7 +337,13 @@ diff -Nru jolla/usr/share/jolla-messages/pages/conversation/SMSMessageDelegate.q
      states: [
          State {
              name: "outboundErrorNoAttachment"
-@@ -202,8 +236,8 @@
+@@ -197,13 +255,13 @@
+ 
+             PropertyChanges {
+                 target: retryIcon
+-                source: "image://theme/icon-m-refresh?" + (message.highlighted ? Theme.highlightColor : Theme.primaryColor)
++                source: "image://theme/icon-m-refresh?" + (message.highlighted ? (layout.bubble ? Theme.highlightDimmerColor : Theme.highlightColor) : Theme.primaryColor)
+             }
  
              AnchorChanges {
                  target: timestamp
